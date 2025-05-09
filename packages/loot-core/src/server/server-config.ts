@@ -7,6 +7,7 @@ type ServerConfig = {
   GOCARDLESS_SERVER: string;
   SIMPLEFIN_SERVER: string;
   PLUGGYAI_SERVER: string;
+  TRADING212_SERVER: string;
 };
 
 let config: ServerConfig | null = null;
@@ -44,6 +45,7 @@ export function getServer(url?: string): ServerConfig | null {
         GOCARDLESS_SERVER: joinURL(url, '/gocardless'),
         SIMPLEFIN_SERVER: joinURL(url, '/simplefin'),
         PLUGGYAI_SERVER: joinURL(url, '/pluggyai'),
+        TRADING212_SERVER: joinURL(url, '/trading212'),
       };
     } catch (error) {
       console.warn(

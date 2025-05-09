@@ -17,6 +17,7 @@ import {
   type TransactionEntity,
   type SyncServerSimpleFinAccount,
   type SyncServerPluggyAiAccount,
+  type Trading212Account,
 } from 'loot-core/types/models';
 
 const sliceName = 'account';
@@ -148,6 +149,28 @@ export const linkAccountPluggyAi = createAppAsyncThunk(
     { dispatch },
   ) => {
     await send('pluggyai-accounts-link', {
+      externalAccount,
+      upgradingId,
+      offBudget,
+    });
+    dispatch(getPayees());
+    dispatch(getAccounts());
+  },
+);
+
+type LinkAccountTrading212Payload = {
+  externalAccount: Trading212Account;
+  upgradingId?: AccountEntity['id'] | undefined;
+  offBudget?: boolean | undefined;
+};
+
+export const linkAccountTrading212 = createAppAsyncThunk(
+  `${sliceName}/linkAccountTrading212`,
+  async (
+    { externalAccount, upgradingId, offBudget }: LinkAccountTrading212Payload,
+    { dispatch },
+  ) => {
+    await send('trading212-accounts-link', {
       externalAccount,
       upgradingId,
       offBudget,
@@ -351,6 +374,7 @@ export const actions = {
   linkAccount,
   linkAccountSimpleFin,
   linkAccountPluggyAi,
+  linkAccountTrading212,
   moveAccount,
   unlinkAccount,
   syncAccounts,

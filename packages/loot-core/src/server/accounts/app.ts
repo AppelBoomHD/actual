@@ -16,6 +16,7 @@ import {
   SyncServerSimpleFinAccount,
   SyncServerPluggyAiAccount,
   type GoCardlessToken,
+  type Trading212Account,
 } from '../../types/models';
 import { createApp } from '../app';
 import * as db from '../db';
@@ -44,6 +45,7 @@ export type AccountHandlers = {
   'gocardless-accounts-link': typeof linkGoCardlessAccount;
   'simplefin-accounts-link': typeof linkSimpleFinAccount;
   'pluggyai-accounts-link': typeof linkPluggyAiAccount;
+  'trading212-accounts-link': typeof linkTrading212Account;
   'account-create': typeof createAccount;
   'account-close': typeof closeAccount;
   'account-reopen': typeof reopenAccount;
@@ -55,8 +57,10 @@ export type AccountHandlers = {
   'gocardless-status': typeof goCardlessStatus;
   'simplefin-status': typeof simpleFinStatus;
   'pluggyai-status': typeof pluggyAiStatus;
+  'trading212-status': typeof trading212Status;
   'simplefin-accounts': typeof simpleFinAccounts;
   'pluggyai-accounts': typeof pluggyAiAccounts;
+  'trading212-accounts': typeof trading212Accounts;
   'gocardless-get-banks': typeof getGoCardlessBanks;
   'gocardless-create-web-token': typeof createGoCardlessWebToken;
   'accounts-bank-sync': typeof accountsBankSync;
@@ -315,6 +319,57 @@ async function linkPluggyAiAccount({
     tables: ['transactions'],
   });
 
+  return 'ok';
+}
+
+async function linkTrading212Account({ externalAccount, upgradingId, offBudget = false }: {
+  externalAccount: Trading212Account;
+  upgradingId?: AccountEntity['id'] | undefined;
+  offBudget?: boolean | undefined;
+}) {
+  let id: string;
+  // For Trading 212, treat as a single institution
+  const institution = { name: 'Trading 212' };
+  const bank = await link.findOrCreateBank(institution, 'trading212');
+
+  if (upgradingId) {
+    const accRow = await db.first<db.DbAccount>(
+      'SELECT * FROM accounts WHERE id = ?',
+      [upgradingId],
+    );
+    if (!accRow) {
+      throw new Error(`Account with ID ${upgradingId} not found.`);
+    }
+    id = accRow.id;
+    await db.update('accounts', {
+      id,
+      account_id: externalAccount.account_id,
+      bank: bank.id,
+      account_sync_source: 'trading212',
+    });
+  } else {
+    id = uuidv4();
+    await db.insertWithUUID('accounts', {
+      id,
+      account_id: externalAccount.account_id,
+      name: externalAccount.name || 'Trading 212',
+      official_name: externalAccount.name || 'Trading 212',
+      bank: bank.id,
+      offbudget: offBudget ? 1 : 0,
+      account_sync_source: 'trading212',
+    });
+    await db.insertPayee({
+      name: '',
+      transfer_acct: id,
+    });
+  }
+
+  // TODO: trigger sync here
+
+  await connection.send('sync-event', {
+    type: 'success',
+    tables: ['transactions'],
+  });
   return 'ok';
 }
 
@@ -682,6 +737,27 @@ async function pluggyAiStatus() {
   );
 }
 
+async function trading212Status() {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  return post(
+    serverConfig.TRADING212_SERVER + '/status',
+    {},
+    {
+      'X-ACTUAL-TOKEN': userToken,
+    },
+  );
+}
+
 async function simpleFinAccounts() {
   const userToken = await asyncStorage.getItem('user-token');
 
@@ -733,6 +809,44 @@ async function pluggyAiAccounts() {
     return { error_code: 'TIMED_OUT' };
   }
 }
+
+async function trading212Accounts() {
+  const userToken = await asyncStorage.getItem('user-token');
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+  try {
+    const metadata = await post(
+      serverConfig.TRADING212_SERVER + '/metadata',
+      {},
+      {
+        'X-ACTUAL-TOKEN': userToken,
+      },
+      60000,
+    );
+
+    const cash = await post(
+      serverConfig.TRADING212_SERVER + '/cash',
+      {},
+      {
+        'X-ACTUAL-TOKEN': userToken,
+      },
+      60000,
+    );
+
+    return {
+      ...metadata,
+      ...cash,
+    };
+  } catch (error) {
+    return { error_code: 'TIMED_OUT' };
+  }
+}
+
 
 async function getGoCardlessBanks(country: string) {
   const userToken = await asyncStorage.getItem('user-token');
@@ -851,7 +965,7 @@ function handleSyncError(
     return {
       type: 'SyncError',
       accountId: acct.id,
-      message: 'Failed syncing account “' + acct.name + '.”',
+      message: 'Failed syncing account "' + acct.name + '".',
       category: error.category,
       code: error.code,
     };
@@ -862,7 +976,7 @@ function handleSyncError(
       accountId: acct.id,
       message: err.reason
         ? err.reason
-        : `Account “${acct.name}” is not linked properly. Please link it again.`,
+        : 'Account "' + acct.name + '" is not linked properly. Please link it again.',
     };
   }
 
@@ -928,7 +1042,7 @@ async function accountsBankSync({
         errors.push(handleSyncError(error, acct));
         captureException({
           ...error,
-          message: 'Failed syncing account “' + acct.name + '.”',
+          message: 'Failed syncing account "' + acct.name + '".',
         } as Error);
       } finally {
         console.groupEnd();
@@ -1013,7 +1127,7 @@ async function simpleFinBatchSync({
           handleSyncError(
             {
               type: 'BankSyncError',
-              reason: 'Failed syncing account “' + account.name + '.”',
+              reason: 'Failed syncing account "' + account.name + '".',
               category: syncResponse.res.error_type,
               code: syncResponse.res.error_code,
             } as BankSyncError,
@@ -1205,6 +1319,7 @@ app.method('account-properties', getAccountProperties);
 app.method('gocardless-accounts-link', linkGoCardlessAccount);
 app.method('simplefin-accounts-link', linkSimpleFinAccount);
 app.method('pluggyai-accounts-link', linkPluggyAiAccount);
+app.method('trading212-accounts-link', linkTrading212Account);
 app.method('account-create', mutator(undoable(createAccount)));
 app.method('account-close', mutator(closeAccount));
 app.method('account-reopen', mutator(undoable(reopenAccount)));
@@ -1216,8 +1331,10 @@ app.method('gocardless-poll-web-token-stop', stopGoCardlessWebTokenPolling);
 app.method('gocardless-status', goCardlessStatus);
 app.method('simplefin-status', simpleFinStatus);
 app.method('pluggyai-status', pluggyAiStatus);
+app.method('trading212-status', trading212Status);
 app.method('simplefin-accounts', simpleFinAccounts);
 app.method('pluggyai-accounts', pluggyAiAccounts);
+app.method('trading212-accounts', trading212Accounts);
 app.method('gocardless-get-banks', getGoCardlessBanks);
 app.method('gocardless-create-web-token', createGoCardlessWebToken);
 app.method('accounts-bank-sync', accountsBankSync);

@@ -112,6 +112,12 @@ export type Modal =
       };
     }
   | {
+      name: 'trading212-init';
+      options: {
+        onSuccess: () => void;
+      };
+    }
+  | {
       name: 'gocardless-external-msg';
       options: {
         onMoveExternal: (arg: {

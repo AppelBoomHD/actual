@@ -15,6 +15,7 @@ export const SecretName = {
   pluggyai_clientId: 'pluggyai_clientId',
   pluggyai_clientSecret: 'pluggyai_clientSecret',
   pluggyai_itemIds: 'pluggyai_itemIds',
+  trading212_apiKey: 'trading212_apiKey',
 };
 
 class SecretsDb {

@@ -33,6 +33,7 @@ import { useGoCardlessStatus } from '@desktop-client/hooks/useGoCardlessStatus';
 import { usePluggyAiStatus } from '@desktop-client/hooks/usePluggyAiStatus';
 import { useSimpleFinStatus } from '@desktop-client/hooks/useSimpleFinStatus';
 import { useSyncServerStatus } from '@desktop-client/hooks/useSyncServerStatus';
+import { useTrading212Status } from '@desktop-client/hooks/useTrading212Status';
 
 type CreateAccountModalProps = Extract<
   ModalType,
@@ -55,6 +56,9 @@ export function CreateAccountModal({
     boolean | null
   >(null);
   const [isPluggyAiSetupComplete, setIsPluggyAiSetupComplete] = useState<
+    boolean | null
+  >(null);
+  const [isTrading212SetupComplete, setIsTrading212SetupComplete] = useState<
     boolean | null
   >(null);
   const { hasPermission } = useAuth();
@@ -219,6 +223,58 @@ export function CreateAccountModal({
     }
   };
 
+  const onConnectTrading212 = async () => {
+    if (!isTrading212SetupComplete) {
+      onTrading212Init();
+      return;
+    }
+    if (loadingTrading212Accounts) {
+      return;
+    }
+    setLoadingTrading212Accounts(true);
+    try {
+      const results = await send('trading212-accounts');
+
+      console.log(results);
+
+      const newAccounts = [];
+      if (results && typeof results.total === 'number' && typeof results.free === 'number' && typeof results.pieCash === 'number') {
+        newAccounts.push({
+          account_id: `${results.id}-cash`,
+          name: 'Trading 212 Cash',
+          institution: 'Trading 212',
+          orgDomain: 'trading212.com',
+          orgId: 'trading212',
+          balance: results.free - results.pieCash,
+        });
+
+        newAccounts.push({
+          account_id: `${results.id}-investments`,
+          name: 'Trading 212 Investments',
+          institution: 'Trading 212',
+          orgDomain: 'trading212.com',
+          orgId: 'trading212',
+          balance: results.total - results.free,
+        });
+      }
+      dispatch(
+        pushModal({
+          modal: {
+            name: 'select-linked-accounts',
+            options: {
+              externalAccounts: newAccounts,
+              syncSource: 'trading212',
+            },
+          },
+        }),
+      );
+    } catch (err) {
+      console.error(err);
+      onTrading212Init();
+    }
+    setLoadingTrading212Accounts(false);
+  };
+
   const onGoCardlessInit = () => {
     dispatch(
       pushModal({
@@ -252,6 +308,19 @@ export function CreateAccountModal({
           name: 'pluggyai-init',
           options: {
             onSuccess: () => setIsPluggyAiSetupComplete(true),
+          },
+        },
+      }),
+    );
+  };
+
+  const onTrading212Init = () => {
+    dispatch(
+      pushModal({
+        modal: {
+          name: 'trading212-init',
+          options: {
+            onSuccess: () => setIsTrading212SetupComplete(true),
           },
         },
       }),
@@ -305,6 +374,15 @@ export function CreateAccountModal({
     });
   };
 
+  const onTrading212Reset = () => {
+    send('secret-set', {
+      name: 'trading212_apiKey',
+      value: null,
+    }).then(() => {
+      setIsTrading212SetupComplete(false);
+    });
+  };
+
   const onCreateLocalAccount = () => {
     dispatch(pushModal({ modal: { name: 'add-local-account' } }));
   };
@@ -324,8 +402,16 @@ export function CreateAccountModal({
     setIsPluggyAiSetupComplete(configuredPluggyAi);
   }, [configuredPluggyAi]);
 
+  const { configuredTrading212 } = useTrading212Status();
+  useEffect(() => {
+    setIsTrading212SetupComplete(configuredTrading212);
+  }, [configuredTrading212]);
+
   let title = t('Add account');
   const [loadingSimpleFinAccounts, setLoadingSimpleFinAccounts] =
+    useState(false);
+
+  const [loadingTrading212Accounts, setLoadingTrading212Accounts] =
     useState(false);
 
   if (upgradingAccountId != null) {
@@ -581,6 +667,69 @@ export function CreateAccountModal({
                           </Text>
                         </>
                       )}
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          gap: 10,
+                          marginTop: '18px',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <ButtonWithLoading
+                          isDisabled={syncServerStatus !== 'online'}
+                          isLoading={loadingTrading212Accounts}
+                          style={{
+                            padding: '10px 0',
+                            fontSize: 15,
+                            fontWeight: 600,
+                            flex: 1,
+                          }}
+                          onPress={onConnectTrading212}
+                        >
+                          {isTrading212SetupComplete
+                            ? t('Link Trading 212 account')
+                            : t('Set up Trading 212 for sync')}
+                        </ButtonWithLoading>
+                        {isTrading212SetupComplete && (
+                          <DialogTrigger>
+                            <Button
+                              variant="bare"
+                              aria-label={t('Trading 212 menu')}
+                            >
+                              <SvgDotsHorizontalTriple
+                                width={15}
+                                height={15}
+                                style={{ transform: 'rotateZ(90deg)' }}
+                              />
+                            </Button>
+                            <Popover>
+                              <Dialog>
+                                <Menu
+                                  onMenuSelect={item => {
+                                    if (item === 'reconfigure') {
+                                      onTrading212Reset();
+                                    }
+                                  }}
+                                  items={[
+                                    {
+                                      name: 'reconfigure',
+                                      text: t('Reset Trading 212 credentials'),
+                                    },
+                                  ]}
+                                />
+                              </Dialog>
+                            </Popover>
+                          </DialogTrigger>
+                        )}
+                      </View>
+                      <Text style={{ lineHeight: '1.4em', fontSize: 15 }}>
+                        <Trans>
+                          <strong>Link your Trading 212 account</strong> to
+                          automatically download your cash and portfolio data.
+                          Trading 212 provides investment account sync via their
+                          public API.
+                        </Trans>
+                      </Text>
                     </>
                   )}
                   {(!isGoCardlessSetupComplete ||

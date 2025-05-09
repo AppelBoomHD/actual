@@ -13,6 +13,7 @@ import {
   linkAccount,
   linkAccountPluggyAi,
   linkAccountSimpleFin,
+  linkAccountTrading212,
   unlinkAccount,
 } from '../../accounts/accountsSlice';
 import { useDispatch } from '../../redux';
@@ -106,6 +107,18 @@ export function SelectLinkedAccountsModal({
         } else if (syncSource === 'pluggyai') {
           dispatch(
             linkAccountPluggyAi({
+              externalAccount,
+              upgradingId:
+                chosenLocalAccountId !== addOnBudgetAccountOption.id &&
+                chosenLocalAccountId !== addOffBudgetAccountOption.id
+                  ? chosenLocalAccountId
+                  : undefined,
+              offBudget,
+            }),
+          );
+        } else if (syncSource === 'trading212') {
+          dispatch(
+            linkAccountTrading212({
               externalAccount,
               upgradingId:
                 chosenLocalAccountId !== addOnBudgetAccountOption.id &&

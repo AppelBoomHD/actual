@@ -68,6 +68,7 @@ import { TrackingBalanceMenuModal } from './modals/TrackingBalanceMenuModal';
 import { TrackingBudgetMenuModal } from './modals/TrackingBudgetMenuModal';
 import { TrackingBudgetMonthMenuModal } from './modals/TrackingBudgetMonthMenuModal';
 import { TrackingBudgetSummaryModal } from './modals/TrackingBudgetSummaryModal';
+import { Trading212InitialiseModal } from './modals/Trading212InitialiseModal';
 import { TransferModal } from './modals/TransferModal';
 import { TransferOwnership } from './modals/TransferOwnership';
 import { CategoryLearning } from './payees/CategoryLearning';
@@ -162,6 +163,9 @@ export function Modals() {
 
         case 'pluggyai-init':
           return <PluggyAiInitialiseModal key={key} {...modal.options} />;
+
+        case 'trading212-init':
+          return <Trading212InitialiseModal key={key} {...modal.options} />;
 
         case 'gocardless-external-msg':
           return (
