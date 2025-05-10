@@ -14,7 +14,7 @@ import {
   amountToInteger,
   integerToAmount,
 } from '../../shared/util';
-import {
+import type {
   AccountEntity,
   BankSyncResponse,
   SimpleFinBatchSyncResponse,
@@ -102,12 +102,12 @@ async function getAccountSyncStartDate(id) {
   );
 }
 
-export async function getGoCardlessAccounts(userId, userKey, id) {
+export async function getGoCardlessAccounts(userId: string, userKey: string, id: string) {
   const userToken = await asyncStorage.getItem('user-token');
   if (!userToken) return;
 
   const res = await post(
-    getServer().GOCARDLESS_SERVER + '/accounts',
+    `${getServer().GOCARDLESS_SERVER}/accounts`,
     {
       userId,
       key: userKey,
@@ -119,11 +119,9 @@ export async function getGoCardlessAccounts(userId, userKey, id) {
   );
 
   const { accounts } = res;
-
-  accounts.forEach(acct => {
+  for (const acct of accounts) {
     acct.balances.current = getAccountBalance(acct);
-  });
-
+  }
   return accounts;
 }
 
@@ -960,6 +958,80 @@ async function processBankSyncDownload(
   });
 }
 
+// --- Trading 212 sync logic ---
+async function downloadTrading212Transactions(acctId: string, since: string, type: 'cash' | 'investments') {
+  const userToken = await asyncStorage.getItem('user-token');
+  if (!userToken) return { cash: { transactions: [], startingBalance: 0 }, investments: { transactions: [], startingBalance: 0 } };
+  const serverConfig = getServer();
+  if (!serverConfig) throw new Error('Failed to get server config.');
+
+  if (type === 'cash') {
+  // Fetch transactions
+  const [transactionsRes, ordersRes] = await Promise.all([
+    post(
+      `${serverConfig.TRADING212_SERVER}/transactions`,
+      { limit: 50 },
+      { 'X-ACTUAL-TOKEN': userToken },
+      60000,
+    ),
+    post(
+      `${serverConfig.TRADING212_SERVER}/orders`,
+      { limit: 50 },
+      { 'X-ACTUAL-TOKEN': userToken },
+      60000,
+    ),
+  ]);
+
+  // Normalize cash transactions
+  const cashTransactions = [
+    ...(transactionsRes?.items || []).map((t: any) => ({
+      ...t,
+      date: new Date(t.dateTime),
+      payeeName: t.type,
+      amount: t.amount,
+      type: 'cash',
+    })),
+    ...(ordersRes?.items || []).map((o: any) => ({
+      ...o,
+      date: new Date(o.dateCreated),
+      payeeName: o.ticker,
+      amount: -o.filledValue,
+      type: 'order',
+    })),
+  ];
+  
+  return {
+    transactions: cashTransactions,
+    accountBalance: 0,
+    startingBalance: 0,
+  }
+}
+
+
+  // Fetch portfolio for investments
+  const portfolioRes = await post(
+    `${serverConfig.TRADING212_SERVER}/portfolio`,
+    { },
+    { 'X-ACTUAL-TOKEN': userToken },
+    60000,
+  );
+
+  const investmentTransactions = (portfolioRes || []).map((p: any) => ({
+    ...p,
+    date: new Date(p.initialFillDate),
+    payeeName: p.ticker,
+    amount: p.quantity * p.currentPrice,
+    type: 'investment',
+  }));
+
+
+  return {
+      transactions: investmentTransactions,
+      accountBalance: 0,
+      startingBalance: 0,
+    }
+}
+
 export async function syncAccount(
   userId: string | undefined,
   userKey: string | undefined,
@@ -973,12 +1045,16 @@ export async function syncAccount(
   const oldestTransaction = await getAccountOldestTransaction(id);
   const newAccount = oldestTransaction == null;
 
-  let download;
+  let download: any;
   if (acctRow.account_sync_source === 'simpleFin') {
     download = await downloadSimpleFinTransactions(acctId, syncStartDate);
-  } else if (acctRow.account_sync_source === 'pluggyai') {
+    return processBankSyncDownload(download, id, acctRow, newAccount);
+  }
+  if (acctRow.account_sync_source === 'pluggyai') {
     download = await downloadPluggyAiTransactions(acctId, syncStartDate);
-  } else if (acctRow.account_sync_source === 'goCardless') {
+    return processBankSyncDownload(download, id, acctRow, newAccount);
+  }
+  if (acctRow.account_sync_source === 'goCardless') {
     download = await downloadGoCardlessTransactions(
       userId,
       userKey,
@@ -987,13 +1063,20 @@ export async function syncAccount(
       syncStartDate,
       newAccount,
     );
-  } else {
-    throw new Error(
-      `Unrecognized bank-sync provider: ${acctRow.account_sync_source}`,
-    );
+    return processBankSyncDownload(download, id, acctRow, newAccount);
   }
-
-  return processBankSyncDownload(download, id, acctRow, newAccount);
+  if (acctRow.account_sync_source === 'trading212') {
+    // For Trading 212, process cash or investment transactions
+    if (acctId.includes('cash')) {
+      download = await downloadTrading212Transactions(acctId, syncStartDate, 'cash');
+      return await processBankSyncDownload(download, id, acctRow, newAccount);
+    }
+    if (acctId.includes('investments')) {
+      download = await downloadTrading212Transactions(acctId, syncStartDate, 'investments');
+      return await processBankSyncDownload(download, id, acctRow, newAccount);
+    }
+  }
+  throw new Error(`Unrecognized bank-sync provider: ${acctRow.account_sync_source}`);
 }
 
 export async function simpleFinBatchSync(

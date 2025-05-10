@@ -49,9 +49,24 @@ export async function getPortfolio() {
 export async function getTransactions({ startDate, limit } = {}) {
   try {
     const params = {};
-    if (startDate) params.time = startDate;
+    if (startDate) params.time = new Date(startDate).toUTCString();
     if (limit) params.limit = limit;
     const res = await axios.get(`${BASE_URL}/history/transactions`, {
+      headers: getAuthHeaders(),
+      params,
+    });
+    return res.data;
+  } catch (e) {
+    throw new Error(e.response?.data?.message || e.message);
+  }
+}
+
+export async function getOrders({ limit, ticker } = {}) {
+  try {
+    const params = {};
+    if (limit) params.limit = limit;
+    if (ticker) params.ticker = ticker;
+    const res = await axios.get(`${BASE_URL}/equity/history/orders`, {
       headers: getAuthHeaders(),
       params,
     });

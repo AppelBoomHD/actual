@@ -364,7 +364,13 @@ async function linkTrading212Account({ externalAccount, upgradingId, offBudget =
     });
   }
 
-  // TODO: trigger sync here
+  await bankSync.syncAccount(
+    undefined,
+    undefined,
+    id,
+    externalAccount.account_id,
+    bank.bank_id,
+  );
 
   await connection.send('sync-event', {
     type: 'success',
