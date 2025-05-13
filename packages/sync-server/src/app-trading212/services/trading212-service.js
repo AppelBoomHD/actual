@@ -1,7 +1,9 @@
 import axios from 'axios';
-import { getUsdToEurRate } from './exchange-rate.js';
 
 import { SecretName, secretsService } from '../../services/secrets-service.js';
+
+import { getUsdToEurRate } from './exchange-rate.js';
+
 
 const BASE_URL = 'https://live.trading212.com/api/v0';
 
@@ -15,7 +17,7 @@ function getAuthHeaders() {
 }
 
 function getDate(date) {
-    return date.toISOString().split('T')[0];
+  return date.toISOString().split('T')[0];
 }
 
 export async function getMetadata() {
@@ -47,12 +49,14 @@ export async function getPortfolio() {
     });
 
     const usdToEurRate = await getUsdToEurRate();
-    const data = (res.data || []).map((p) => ({
+    const data = (res.data || []).map(p => ({
       ...p,
       internalTransactionId: p.ticker,
       date: getDate(new Date(p.initialFillDate)),
       payeeName: p.ticker,
-      amount: p.ticker.includes('US') ? (p.quantity * p.currentPrice * usdToEurRate) : (p.quantity * p.currentPrice),
+      amount: p.ticker.includes('US')
+        ? p.quantity * p.currentPrice * usdToEurRate
+        : p.quantity * p.currentPrice,
       type: 'investment',
       booked: true,
     }));
@@ -80,28 +84,33 @@ export async function getTransactions({ startDate, limit } = {}) {
         first = false;
       } else {
         // nextPagePath is a query string for transactions
-        res = await axios.get(`${BASE_URL}/history/transactions?${paramsString}`, { headers: getAuthHeaders() });
+        res = await axios.get(
+          `${BASE_URL}/history/transactions?${paramsString}`,
+          { headers: getAuthHeaders() },
+        );
       }
       const data = res.data;
       allItems = allItems.concat(data.items || []);
       if (data.nextPagePath) {
         console.log('nextPagePath', data.nextPagePath);
         // nextPagePath is a query string (e.g. limit=50&cursor=...)
-        paramsString = data.nextPagePath.startsWith('?') ? data.nextPagePath.slice(1) : data.nextPagePath;
+        paramsString = data.nextPagePath.startsWith('?')
+          ? data.nextPagePath.slice(1)
+          : data.nextPagePath;
       } else {
         hasNext = false;
       }
     }
 
-    const items = allItems.map((t) => ({
-        ...t,
-        internalTransactionId: t.reference,
-        date: getDate(new Date(t.dateTime)),
-        payeeName: t.type,
-        amount: t.amount,
-        type: 'cash',
-        booked: true,
-      }))
+    const items = allItems.map(t => ({
+      ...t,
+      internalTransactionId: t.reference,
+      date: getDate(new Date(t.dateTime)),
+      payeeName: t.type,
+      amount: t.amount,
+      type: 'cash',
+      booked: true,
+    }));
 
     return { items };
   } catch (e) {
@@ -126,12 +135,16 @@ export async function getOrders({ limit, ticker } = {}) {
         first = false;
       } else {
         // nextPagePath is a full path for orders
-        res = await axios.get(`${BASE_URL}${nextPagePath}`, { headers: getAuthHeaders() });
+        res = await axios.get(`${BASE_URL}${nextPagePath}`, {
+          headers: getAuthHeaders(),
+        });
       }
       const data = res.data;
       allItems = allItems.concat(data.items || []);
       if (data.nextPagePath) {
-        nextPagePath = data.nextPagePath.startsWith('/') ? data.nextPagePath : `/${data.nextPagePath}`;
+        nextPagePath = data.nextPagePath.startsWith('/')
+          ? data.nextPagePath
+          : `/${data.nextPagePath}`;
         nextPagePath = nextPagePath.replace('/api/v0', '');
       } else {
         hasNext = false;
@@ -139,20 +152,19 @@ export async function getOrders({ limit, ticker } = {}) {
     }
 
     const items = allItems.reduce((arr, o) => {
-       if (o.filledValue) {
+      if (o.filledValue) {
         arr.push({
-        ...o,
-        internalTransactionId: o.fillId,
-        date: getDate(new Date(o.dateCreated)),
-        payeeName: o.ticker,
-        amount: -o.filledValue,
-        type: 'order',
-        booked: true,
-      })
-    }
+          ...o,
+          internalTransactionId: o.fillId,
+          date: getDate(new Date(o.dateCreated)),
+          payeeName: o.ticker,
+          amount: -o.filledValue,
+          type: 'order',
+          booked: true,
+        });
+      }
       return arr;
-    
-    }, [])
+    }, []);
 
     return { items };
   } catch (e) {
@@ -176,18 +188,22 @@ export async function getDividends({ startDate, limit } = {}) {
         res = await axios.get(url, { headers: getAuthHeaders(), params });
         first = false;
       } else {
-        res = await axios.get(`${BASE_URL}/history/dividends?${paramsString}`, { headers: getAuthHeaders() });
+        res = await axios.get(`${BASE_URL}/history/dividends?${paramsString}`, {
+          headers: getAuthHeaders(),
+        });
       }
       const data = res.data;
       allItems = allItems.concat(data.items || []);
       if (data.nextPagePath) {
-        paramsString = data.nextPagePath.startsWith('?') ? data.nextPagePath.slice(1) : data.nextPagePath;
+        paramsString = data.nextPagePath.startsWith('?')
+          ? data.nextPagePath.slice(1)
+          : data.nextPagePath;
       } else {
         hasNext = false;
       }
     }
 
-    const items = allItems.map((d) => ({
+    const items = allItems.map(d => ({
       ...d,
       internalTransactionId: d.reference,
       date: getDate(new Date(d.paidOn)),

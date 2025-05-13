@@ -14,4 +14,4 @@ export const down = async function () {
   await getGlobalCacheDb().exec(`
     DROP TABLE global_cache;
   `);
-}; 
+};

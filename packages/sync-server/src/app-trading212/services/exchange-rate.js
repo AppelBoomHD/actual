@@ -1,4 +1,5 @@
 import axios from 'axios';
+
 import { globalCacheService } from '../../services/global-cache-service.js';
 import { SecretName, secretsService } from '../../services/secrets-service.js';
 
@@ -27,4 +28,4 @@ export async function getUsdToEurRate() {
   const rate = Number(res.data.rates.EUR);
   globalCacheService.set(CACHE_KEY, String(rate));
   return rate;
-} 
+}

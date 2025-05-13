@@ -84,7 +84,8 @@ export const Trading212InitialiseModal = ({
             <Text>
               <Trans>
                 To enable Trading 212 integration, you need to provide your
-                Trading 212 API key. You can find this by logging in to Trading 212 and going to Settings -&gt; API -&gt; Generate API key.
+                Trading 212 API key. You can find this by logging in to Trading
+                212 and going to Settings -&gt; API -&gt; Generate API key.
               </Trans>
             </Text>
 
@@ -106,7 +107,8 @@ export const Trading212InitialiseModal = ({
 
             <Text>
               <Trans>
-                The OER App ID is required to convert Trading 212 data into your local currency. You can obtain a free App ID by registering at{' '}
+                The OER App ID is required to convert Trading 212 data into your
+                local currency. You can obtain a free App ID by registering at{' '}
                 <Link
                   variant="external"
                   to="https://openexchangerates.org/signup/free"

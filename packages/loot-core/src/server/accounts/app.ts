@@ -322,7 +322,11 @@ async function linkPluggyAiAccount({
   return 'ok';
 }
 
-async function linkTrading212Account({ externalAccount, upgradingId, offBudget = false }: {
+async function linkTrading212Account({
+  externalAccount,
+  upgradingId,
+  offBudget = false,
+}: {
   externalAccount: Trading212Account;
   upgradingId?: AccountEntity['id'] | undefined;
   offBudget?: boolean | undefined;
@@ -853,7 +857,6 @@ async function trading212Accounts() {
   }
 }
 
-
 async function getGoCardlessBanks(country: string) {
   const userToken = await asyncStorage.getItem('user-token');
 
@@ -982,7 +985,9 @@ function handleSyncError(
       accountId: acct.id,
       message: err.reason
         ? err.reason
-        : 'Account "' + acct.name + '" is not linked properly. Please link it again.',
+        : 'Account "' +
+          acct.name +
+          '" is not linked properly. Please link it again.',
     };
   }
 

@@ -63,7 +63,6 @@ app.post('/transactions', async (req, res) => {
     const data = await getTransactions({ startDate, limit });
     res.send({ status: 'ok', data });
   } catch (e) {
-    console.log(e)
     res.send({ status: 'error', error: e.message });
   }
 });

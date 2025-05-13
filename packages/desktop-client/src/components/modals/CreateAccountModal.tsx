@@ -235,10 +235,13 @@ export function CreateAccountModal({
     try {
       const results = await send('trading212-accounts');
 
-      console.log(results);
-
       const newAccounts = [];
-      if (results && typeof results.total === 'number' && typeof results.free === 'number' && typeof results.pieCash === 'number') {
+      if (
+        results &&
+        typeof results.total === 'number' &&
+        typeof results.free === 'number' &&
+        typeof results.pieCash === 'number'
+      ) {
         newAccounts.push({
           account_id: `${results.id}-cash`,
           name: 'Trading 212 Cash',

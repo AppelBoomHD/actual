@@ -102,7 +102,11 @@ async function getAccountSyncStartDate(id) {
   );
 }
 
-export async function getGoCardlessAccounts(userId: string, userKey: string, id: string) {
+export async function getGoCardlessAccounts(
+  userId: string,
+  userKey: string,
+  id: string,
+) {
   const userToken = await asyncStorage.getItem('user-token');
   if (!userToken) return;
 
@@ -959,61 +963,67 @@ async function processBankSyncDownload(
   });
 }
 
-async function downloadTrading212Transactions(acctId: string, since: string, type: 'cash' | 'investments') {
+async function downloadTrading212Transactions(
+  acctId: string,
+  since: string,
+  type: 'cash' | 'investments',
+) {
   const userToken = await asyncStorage.getItem('user-token');
-  if (!userToken) return { cash: { transactions: [], startingBalance: 0 }, investments: { transactions: [], startingBalance: 0 } };
+  if (!userToken)
+    {return {
+      cash: { transactions: [], startingBalance: 0 },
+      investments: { transactions: [], startingBalance: 0 },
+    };}
   const serverConfig = getServer();
   if (!serverConfig) throw new Error('Failed to get server config.');
 
   if (type === 'cash') {
-  // Fetch transactions
-  const [transactionsRes, ordersRes, dividendsRes] = await Promise.all([
-    post(
-      `${serverConfig.TRADING212_SERVER}/transactions`,
-      { limit: 50 },
-      { 'X-ACTUAL-TOKEN': userToken },
-      60000,
-    ),
-    post(
-      `${serverConfig.TRADING212_SERVER}/orders`,
-      { limit: 50 },
-      { 'X-ACTUAL-TOKEN': userToken },
-      60000,
-    ),
-    post(
-      `${serverConfig.TRADING212_SERVER}/dividends`,
-      { limit: 50 },
-      { 'X-ACTUAL-TOKEN': userToken },
-      60000,
-    ),
-  ]);
+    const [transactionsRes, ordersRes, dividendsRes] = await Promise.all([
+      post(
+        `${serverConfig.TRADING212_SERVER}/transactions`,
+        { limit: 50 },
+        { 'X-ACTUAL-TOKEN': userToken },
+        60000,
+      ),
+      post(
+        `${serverConfig.TRADING212_SERVER}/orders`,
+        { limit: 50 },
+        { 'X-ACTUAL-TOKEN': userToken },
+        60000,
+      ),
+      post(
+        `${serverConfig.TRADING212_SERVER}/dividends`,
+        { limit: 50 },
+        { 'X-ACTUAL-TOKEN': userToken },
+        60000,
+      ),
+    ]);
 
-  const cashTransactions = [
-    ...(transactionsRes?.items || []),
-    ...(ordersRes?.items || []),
-    ...(dividendsRes?.items || [])
-  ];
-  
-  return {
-    transactions: cashTransactions,
-    accountBalance: 0,
-    startingBalance: 0,
+    const cashTransactions = [
+      ...(transactionsRes?.items || []),
+      ...(ordersRes?.items || []),
+      ...(dividendsRes?.items || []),
+    ];
+
+    return {
+      transactions: cashTransactions,
+      accountBalance: 0,
+      startingBalance: 0,
+    };
   }
-}
-
 
   const portfolioRes = await post(
     `${serverConfig.TRADING212_SERVER}/portfolio`,
-    { },
+    {},
     { 'X-ACTUAL-TOKEN': userToken },
     60000,
   );
 
   return {
-      transactions: portfolioRes,
-      accountBalance: 0,
-      startingBalance: 0,
-    }
+    transactions: portfolioRes,
+    accountBalance: 0,
+    startingBalance: 0,
+  };
 }
 
 export async function syncAccount(
@@ -1052,15 +1062,25 @@ export async function syncAccount(
   if (acctRow.account_sync_source === 'trading212') {
     // For Trading 212, process cash or investment transactions
     if (acctId.includes('cash')) {
-      download = await downloadTrading212Transactions(acctId, syncStartDate, 'cash');
+      download = await downloadTrading212Transactions(
+        acctId,
+        syncStartDate,
+        'cash',
+      );
       return await processBankSyncDownload(download, id, acctRow, newAccount);
     }
     if (acctId.includes('investments')) {
-      download = await downloadTrading212Transactions(acctId, syncStartDate, 'investments');
+      download = await downloadTrading212Transactions(
+        acctId,
+        syncStartDate,
+        'investments',
+      );
       return await processBankSyncDownload(download, id, acctRow, newAccount);
     }
   }
-  throw new Error(`Unrecognized bank-sync provider: ${acctRow.account_sync_source}`);
+  throw new Error(
+    `Unrecognized bank-sync provider: ${acctRow.account_sync_source}`,
+  );
 }
 
 export async function simpleFinBatchSync(
