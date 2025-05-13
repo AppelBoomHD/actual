@@ -85,6 +85,7 @@ export async function getTransactions({ startDate, limit } = {}) {
       const data = res.data;
       allItems = allItems.concat(data.items || []);
       if (data.nextPagePath) {
+        console.log('nextPagePath', data.nextPagePath);
         // nextPagePath is a query string (e.g. limit=50&cursor=...)
         paramsString = data.nextPagePath.startsWith('?') ? data.nextPagePath.slice(1) : data.nextPagePath;
       } else {
@@ -152,6 +153,49 @@ export async function getOrders({ limit, ticker } = {}) {
       return arr;
     
     }, [])
+
+    return { items };
+  } catch (e) {
+    throw new Error(e.response?.data?.message || e.message);
+  }
+}
+
+export async function getDividends({ startDate, limit } = {}) {
+  try {
+    const params = {};
+    if (startDate) params.paidOn = new Date(startDate).toISOString();
+    if (limit) params.limit = limit;
+    const url = `${BASE_URL}/history/dividends`;
+    let allItems = [];
+    let hasNext = true;
+    let first = true;
+    let paramsString = '';
+    while (hasNext) {
+      let res;
+      if (first) {
+        res = await axios.get(url, { headers: getAuthHeaders(), params });
+        first = false;
+      } else {
+        res = await axios.get(`${BASE_URL}/history/dividends?${paramsString}`, { headers: getAuthHeaders() });
+      }
+      const data = res.data;
+      allItems = allItems.concat(data.items || []);
+      if (data.nextPagePath) {
+        paramsString = data.nextPagePath.startsWith('?') ? data.nextPagePath.slice(1) : data.nextPagePath;
+      } else {
+        hasNext = false;
+      }
+    }
+
+    const items = allItems.map((d) => ({
+      ...d,
+      internalTransactionId: d.reference,
+      date: getDate(new Date(d.paidOn)),
+      payeeName: d.ticker || 'Dividend',
+      amount: d.amountInEuro,
+      type: 'dividend',
+      booked: true,
+    }));
 
     return { items };
   } catch (e) {

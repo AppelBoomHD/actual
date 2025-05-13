@@ -9,6 +9,7 @@ import {
   getTransactions,
   getMetadata,
   getOrders,
+  getDividends,
 } from './services/trading212-service.js';
 
 const app = express();
@@ -71,6 +72,16 @@ app.post('/orders', async (req, res) => {
   try {
     const { limit, ticker } = req.body || {};
     const data = await getOrders({ limit, ticker });
+    res.send({ status: 'ok', data });
+  } catch (e) {
+    res.send({ status: 'error', error: e.message });
+  }
+});
+
+app.post('/dividends', async (req, res) => {
+  try {
+    const { startDate, limit } = req.body || {};
+    const data = await getDividends({ startDate, limit });
     res.send({ status: 'ok', data });
   } catch (e) {
     res.send({ status: 'error', error: e.message });

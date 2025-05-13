@@ -959,7 +959,6 @@ async function processBankSyncDownload(
   });
 }
 
-// --- Trading 212 sync logic ---
 async function downloadTrading212Transactions(acctId: string, since: string, type: 'cash' | 'investments') {
   const userToken = await asyncStorage.getItem('user-token');
   if (!userToken) return { cash: { transactions: [], startingBalance: 0 }, investments: { transactions: [], startingBalance: 0 } };
@@ -968,7 +967,7 @@ async function downloadTrading212Transactions(acctId: string, since: string, typ
 
   if (type === 'cash') {
   // Fetch transactions
-  const [transactionsRes, ordersRes] = await Promise.all([
+  const [transactionsRes, ordersRes, dividendsRes] = await Promise.all([
     post(
       `${serverConfig.TRADING212_SERVER}/transactions`,
       { limit: 50 },
@@ -981,12 +980,18 @@ async function downloadTrading212Transactions(acctId: string, since: string, typ
       { 'X-ACTUAL-TOKEN': userToken },
       60000,
     ),
+    post(
+      `${serverConfig.TRADING212_SERVER}/dividends`,
+      { limit: 50 },
+      { 'X-ACTUAL-TOKEN': userToken },
+      60000,
+    ),
   ]);
 
-  // Normalize cash transactions
   const cashTransactions = [
     ...(transactionsRes?.items || []),
-    ...(ordersRes?.items || [])
+    ...(ordersRes?.items || []),
+    ...(dividendsRes?.items || [])
   ];
   
   return {
@@ -997,7 +1002,6 @@ async function downloadTrading212Transactions(acctId: string, since: string, typ
 }
 
 
-  // Fetch portfolio for investments
   const portfolioRes = await post(
     `${serverConfig.TRADING212_SERVER}/portfolio`,
     { },
