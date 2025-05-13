@@ -4,7 +4,6 @@ import { SecretName, secretsService } from '../../services/secrets-service.js';
 
 import { getUsdToEurRate } from './exchange-rate.js';
 
-
 const BASE_URL = 'https://live.trading212.com/api/v0';
 
 function getAuthHeaders() {
@@ -49,7 +48,7 @@ export async function getPortfolio() {
     });
 
     const usdToEurRate = await getUsdToEurRate();
-    const data = (res.data || []).map(p => ({
+    const items = (res.data || []).map(p => ({
       ...p,
       internalTransactionId: p.ticker,
       date: getDate(new Date(p.initialFillDate)),
@@ -61,7 +60,7 @@ export async function getPortfolio() {
       booked: true,
     }));
 
-    return data;
+    return items;
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }
@@ -112,7 +111,7 @@ export async function getTransactions({ startDate, limit } = {}) {
       booked: true,
     }));
 
-    return { items };
+    return items;
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }
@@ -166,7 +165,7 @@ export async function getOrders({ limit, ticker } = {}) {
       return arr;
     }, []);
 
-    return { items };
+    return items;
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }
@@ -213,7 +212,7 @@ export async function getDividends({ startDate, limit } = {}) {
       booked: true,
     }));
 
-    return { items };
+    return items;
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }

@@ -905,6 +905,18 @@ async function processBankSyncDownload(
       balanceToUse = Math.round(previousBalance);
     }
 
+    if (
+      acctRow.account_sync_source === 'trading212' &&
+      acctRow.account_id.includes('cash')
+    ) {
+      const currentBalance = download.accountBalance;
+      const previousBalance = transactions.reduce(
+        (total, trans) => total - trans.amount,
+        currentBalance,
+      );
+      balanceToUse = Math.round(previousBalance * 100);
+    }
+
     const oldestTransaction = transactions[transactions.length - 1];
 
     const oldestDate =
@@ -969,59 +981,117 @@ async function downloadTrading212Transactions(
   type: 'cash' | 'investments',
 ) {
   const userToken = await asyncStorage.getItem('user-token');
-  if (!userToken)
-    {return {
+  if (!userToken) {
+    return {
       cash: { transactions: [], startingBalance: 0 },
       investments: { transactions: [], startingBalance: 0 },
-    };}
+    };
+  }
   const serverConfig = getServer();
   if (!serverConfig) throw new Error('Failed to get server config.');
 
   if (type === 'cash') {
-    const [transactionsRes, ordersRes, dividendsRes] = await Promise.all([
-      post(
-        `${serverConfig.TRADING212_SERVER}/transactions`,
-        { limit: 50 },
-        { 'X-ACTUAL-TOKEN': userToken },
-        60000,
-      ),
-      post(
-        `${serverConfig.TRADING212_SERVER}/orders`,
-        { limit: 50 },
-        { 'X-ACTUAL-TOKEN': userToken },
-        60000,
-      ),
-      post(
-        `${serverConfig.TRADING212_SERVER}/dividends`,
-        { limit: 50 },
-        { 'X-ACTUAL-TOKEN': userToken },
-        60000,
-      ),
-    ]);
+    const [transactionsRes, ordersRes, dividendsRes, cashRes] =
+      await Promise.all([
+        post(
+          `${serverConfig.TRADING212_SERVER}/transactions`,
+          { limit: 50 },
+          { 'X-ACTUAL-TOKEN': userToken },
+          60000,
+        ),
+        post(
+          `${serverConfig.TRADING212_SERVER}/orders`,
+          { limit: 50 },
+          { 'X-ACTUAL-TOKEN': userToken },
+          60000,
+        ),
+        post(
+          `${serverConfig.TRADING212_SERVER}/dividends`,
+          { limit: 50 },
+          { 'X-ACTUAL-TOKEN': userToken },
+          60000,
+        ),
+        post(
+          `${serverConfig.TRADING212_SERVER}/cash`,
+          { 'X-ACTUAL-TOKEN': userToken },
+          60000,
+        ),
+      ]);
+
+    const error_code =
+      transactionsRes.error_code ||
+      ordersRes.error_code ||
+      dividendsRes.error_code ||
+      cashRes.error_code;
+    const error_type =
+      transactionsRes.error_type ||
+      ordersRes.error_type ||
+      dividendsRes.error_type ||
+      cashRes.error_type;
+    const error =
+      transactionsRes.error ||
+      ordersRes.error ||
+      dividendsRes.error ||
+      cashRes.error;
+
+    if (error_code) {
+      throw BankSyncError(error_type, error_code, {});
+    } else if (error) {
+      throw BankSyncError('Connection', error);
+    }
 
     const cashTransactions = [
-      ...(transactionsRes?.items || []),
-      ...(ordersRes?.items || []),
-      ...(dividendsRes?.items || []),
+      ...transactionsRes,
+      ...ordersRes,
+      ...dividendsRes,
     ];
 
     return {
       transactions: cashTransactions,
-      accountBalance: 0,
+      accountBalance: cashRes.free - cashRes.pieCash,
       startingBalance: 0,
     };
   }
 
-  const portfolioRes = await post(
-    `${serverConfig.TRADING212_SERVER}/portfolio`,
-    {},
-    { 'X-ACTUAL-TOKEN': userToken },
-    60000,
-  );
+  const [portfolioRes, cashRes] = await Promise.all([
+    await post(
+      `${serverConfig.TRADING212_SERVER}/portfolio`,
+      {},
+      { 'X-ACTUAL-TOKEN': userToken },
+      60000,
+    ),
+    post(
+      `${serverConfig.TRADING212_SERVER}/cash`,
+      { 'X-ACTUAL-TOKEN': userToken },
+      60000,
+    ),
+  ]);
+
+  const error_code = portfolioRes.error_code || cashRes.error_code;
+  const error_type = portfolioRes.error_type || cashRes.error_type;
+  const error = portfolioRes.error || cashRes.error;
+
+  if (error_code) {
+    throw BankSyncError(error_type, error_code, {});
+  } else if (error) {
+    throw BankSyncError('Connection', error);
+  }
+
+  const transactions = [
+    ...portfolioRes,
+    {
+      internalTransactionId: 'Pie Cash',
+      date: new Date(),
+      payeeName: 'Pie Cash',
+      amount: cashRes.pieCash,
+      type: 'investment',
+      booked: true,
+    },
+  ];
 
   return {
-    transactions: portfolioRes,
-    accountBalance: 0,
+    transactions,
+    accountBalance: cashRes.total - cashRes.free + cashRes.pieCash,
     startingBalance: 0,
   };
 }

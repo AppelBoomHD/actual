@@ -257,7 +257,7 @@ export function CreateAccountModal({
           institution: 'Trading 212',
           orgDomain: 'trading212.com',
           orgId: 'trading212',
-          balance: results.total - results.free,
+          balance: results.total - results.free + results.pieCash,
         });
       }
       dispatch(
@@ -273,6 +273,14 @@ export function CreateAccountModal({
       );
     } catch (err) {
       console.error(err);
+      addNotification({
+        notification: {
+          type: 'error',
+          title: t('Error when trying to contact Trading 212'),
+          message: (err as Error).message,
+          timeout: 5000,
+        },
+      });
       onTrading212Init();
     }
     setLoadingTrading212Accounts(false);

@@ -30,61 +30,55 @@ app.post(
   }),
 );
 
-app.post('/metadata', async (req, res) => {
-  try {
+app.post(
+  '/metadata',
+  handleError(async (req, res) => {
     const data = await getMetadata();
     res.send({ status: 'ok', data });
-  } catch (e) {
-    res.send({ status: 'error', error: e.message });
-  }
-});
+  }),
+);
 
-app.post('/cash', async (req, res) => {
-  try {
+app.post(
+  '/cash',
+  handleError(async (req, res) => {
     const data = await getAccountCash();
     res.send({ status: 'ok', data });
-  } catch (e) {
-    res.send({ status: 'error', error: e.message });
-  }
-});
+  }),
+);
 
-app.post('/portfolio', async (req, res) => {
-  try {
+app.post(
+  '/portfolio',
+  handleError(async (req, res) => {
     const data = await getPortfolio();
     res.send({ status: 'ok', data });
-  } catch (e) {
-    res.send({ status: 'error', error: e.message });
-  }
-});
+  }),
+);
 
-app.post('/transactions', async (req, res) => {
-  try {
+app.post(
+  '/transactions',
+  handleError(async (req, res) => {
     const { startDate, limit } = req.body || {};
     const data = await getTransactions({ startDate, limit });
     res.send({ status: 'ok', data });
-  } catch (e) {
-    res.send({ status: 'error', error: e.message });
-  }
-});
+  }),
+);
 
-app.post('/orders', async (req, res) => {
-  try {
+app.post(
+  '/orders',
+  handleError(async (req, res) => {
     const { limit, ticker } = req.body || {};
     const data = await getOrders({ limit, ticker });
     res.send({ status: 'ok', data });
-  } catch (e) {
-    res.send({ status: 'error', error: e.message });
-  }
-});
+  }),
+);
 
-app.post('/dividends', async (req, res) => {
-  try {
+app.post(
+  '/dividends',
+  handleError(async (req, res) => {
     const { startDate, limit } = req.body || {};
     const data = await getDividends({ startDate, limit });
     res.send({ status: 'ok', data });
-  } catch (e) {
-    res.send({ status: 'error', error: e.message });
-  }
-});
+  }),
+);
 
 export { app as handlers };
