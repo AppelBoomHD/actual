@@ -131,7 +131,7 @@ describe('Account sync', () => {
     await db.update('preferences', { id: reimportKey, value: 'false' });
 
     await reconcileTransactions(acctId, [
-      { date: '2020-01-01', imported_id: 'finid' },
+      { date: '2020-01-01', imported_id: 'finid', amount: 0 },
     ]);
 
     const transactions1 = await getAllTransactions();
@@ -140,7 +140,7 @@ describe('Account sync', () => {
     await db.deleteTransaction(transactions1[0]);
 
     await reconcileTransactions(acctId, [
-      { date: '2020-01-01', imported_id: 'finid' },
+      { date: '2020-01-01', imported_id: 'finid', amount: 0 },
     ]);
     const transactions2 = await getAllTransactions();
     expect(transactions2.length).toBe(1);
