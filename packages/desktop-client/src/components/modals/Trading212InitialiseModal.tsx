@@ -7,11 +7,11 @@ import { Input } from '@actual-app/components/input';
 import { Text } from '@actual-app/components/text';
 import { View } from '@actual-app/components/view';
 
-import { type Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
+import type { Modal as ModalType } from 'loot-core/client/modals/modalsSlice';
 import { send } from 'loot-core/platform/client/fetch';
 import { getSecretsError } from 'loot-core/shared/errors';
 
-import { Error } from '../alerts';
+import { Error as ErrorAlert } from '../alerts';
 import { Link } from '../common/Link';
 import {
   Modal,
@@ -31,6 +31,7 @@ export const Trading212InitialiseModal = ({
 }: Trading212InitialiseModalProps) => {
   const { t } = useTranslation();
   const [apiKey, setApiKey] = useState('');
+  const [oerAppId, setOerAppId] = useState('');
   const [isValid, setIsValid] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(
@@ -38,27 +39,37 @@ export const Trading212InitialiseModal = ({
   );
 
   const onSubmit = async (close: () => void) => {
-    if (!apiKey) {
+    if (!apiKey || !oerAppId) {
       setIsValid(false);
+      setError(t('Both API Key and OER App ID are required.'));
       return;
     }
 
     setIsLoading(true);
 
-    const { error, reason } =
+    const apiKeyResult =
       (await send('secret-set', {
         name: 'trading212_apiKey',
         value: apiKey,
       })) || {};
+
+    const oerAppIdResult =
+      (await send('secret-set', {
+        name: 'trading212_oerAppId',
+        value: oerAppId,
+      })) || {};
+
+    const error = apiKeyResult.error || oerAppIdResult.error;
+    const reason = apiKeyResult.reason || oerAppIdResult.reason;
 
     if (error) {
       setIsValid(false);
       setError(getSecretsError(error, reason));
     } else {
       onSuccess();
+      close();
     }
     setIsLoading(false);
-    close();
   };
 
   return (
@@ -73,15 +84,7 @@ export const Trading212InitialiseModal = ({
             <Text>
               <Trans>
                 To enable Trading 212 integration, you need to provide your
-                Trading 212 API key. You can find more information in the{' '}
-                <Link
-                  variant="external"
-                  to="https://t212public-api-docs.redoc.ly"
-                  linkColor="purple"
-                >
-                  Trading 212 API documentation
-                </Link>
-                .
+                Trading 212 API key. You can find this by logging in to Trading 212 and going to Settings -&gt; API -&gt; Generate API key.
               </Trans>
             </Text>
 
@@ -101,7 +104,37 @@ export const Trading212InitialiseModal = ({
               />
             </FormField>
 
-            {!isValid && <Error>{error}</Error>}
+            <Text>
+              <Trans>
+                The OER App ID is required to convert Trading 212 data into your local currency. You can obtain a free App ID by registering at{' '}
+                <Link
+                  variant="external"
+                  to="https://openexchangerates.org/signup/free"
+                  linkColor="purple"
+                >
+                  Open Exchange Rates
+                </Link>
+                .
+              </Trans>
+            </Text>
+
+            <FormField>
+              <FormLabel
+                title={t('OER App ID:')}
+                htmlFor="trading212-oer-app-id-field"
+              />
+              <Input
+                id="trading212-oer-app-id-field"
+                type="text"
+                value={oerAppId}
+                onChangeValue={value => {
+                  setOerAppId(value);
+                  setIsValid(true);
+                }}
+              />
+            </FormField>
+
+            {!isValid && <ErrorAlert>{error}</ErrorAlert>}
           </View>
 
           <ModalButtons>

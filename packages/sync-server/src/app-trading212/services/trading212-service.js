@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getUsdToEurRate } from './exchange-rate.js';
 
 import { SecretName, secretsService } from '../../services/secrets-service.js';
 
@@ -11,6 +12,10 @@ function getAuthHeaders() {
     Authorization: apiKey,
     Accept: 'application/json',
   };
+}
+
+function getDate(date) {
+    return date.toISOString().split('T')[0];
 }
 
 export async function getMetadata() {
@@ -40,7 +45,19 @@ export async function getPortfolio() {
     const res = await axios.get(`${BASE_URL}/equity/portfolio`, {
       headers: getAuthHeaders(),
     });
-    return res.data;
+
+    const usdToEurRate = await getUsdToEurRate();
+    const data = (res.data || []).map((p) => ({
+      ...p,
+      internalTransactionId: p.ticker,
+      date: getDate(new Date(p.initialFillDate)),
+      payeeName: p.ticker,
+      amount: p.ticker.includes('US') ? (p.quantity * p.currentPrice * usdToEurRate) : (p.quantity * p.currentPrice),
+      type: 'investment',
+      booked: true,
+    }));
+
+    return data;
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }
@@ -51,11 +68,41 @@ export async function getTransactions({ startDate, limit } = {}) {
     const params = {};
     if (startDate) params.time = new Date(startDate).toUTCString();
     if (limit) params.limit = limit;
-    const res = await axios.get(`${BASE_URL}/history/transactions`, {
-      headers: getAuthHeaders(),
-      params,
-    });
-    return res.data;
+    const url = `${BASE_URL}/history/transactions`;
+    let allItems = [];
+    let hasNext = true;
+    let first = true;
+    let paramsString = '';
+    while (hasNext) {
+      let res;
+      if (first) {
+        res = await axios.get(url, { headers: getAuthHeaders(), params });
+        first = false;
+      } else {
+        // nextPagePath is a query string for transactions
+        res = await axios.get(`${BASE_URL}/history/transactions?${paramsString}`, { headers: getAuthHeaders() });
+      }
+      const data = res.data;
+      allItems = allItems.concat(data.items || []);
+      if (data.nextPagePath) {
+        // nextPagePath is a query string (e.g. limit=50&cursor=...)
+        paramsString = data.nextPagePath.startsWith('?') ? data.nextPagePath.slice(1) : data.nextPagePath;
+      } else {
+        hasNext = false;
+      }
+    }
+
+    const items = allItems.map((t) => ({
+        ...t,
+        internalTransactionId: t.reference,
+        date: getDate(new Date(t.dateTime)),
+        payeeName: t.type,
+        amount: t.amount,
+        type: 'cash',
+        booked: true,
+      }))
+
+    return { items };
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }
@@ -66,11 +113,47 @@ export async function getOrders({ limit, ticker } = {}) {
     const params = {};
     if (limit) params.limit = limit;
     if (ticker) params.ticker = ticker;
-    const res = await axios.get(`${BASE_URL}/equity/history/orders`, {
-      headers: getAuthHeaders(),
-      params,
-    });
-    return res.data;
+    const url = `${BASE_URL}/equity/history/orders`;
+    let allItems = [];
+    let hasNext = true;
+    let first = true;
+    let nextPagePath = '';
+    while (hasNext) {
+      let res;
+      if (first) {
+        res = await axios.get(url, { headers: getAuthHeaders(), params });
+        first = false;
+      } else {
+        // nextPagePath is a full path for orders
+        res = await axios.get(`${BASE_URL}${nextPagePath}`, { headers: getAuthHeaders() });
+      }
+      const data = res.data;
+      allItems = allItems.concat(data.items || []);
+      if (data.nextPagePath) {
+        nextPagePath = data.nextPagePath.startsWith('/') ? data.nextPagePath : `/${data.nextPagePath}`;
+        nextPagePath = nextPagePath.replace('/api/v0', '');
+      } else {
+        hasNext = false;
+      }
+    }
+
+    const items = allItems.reduce((arr, o) => {
+       if (o.filledValue) {
+        arr.push({
+        ...o,
+        internalTransactionId: o.fillId,
+        date: getDate(new Date(o.dateCreated)),
+        payeeName: o.ticker,
+        amount: -o.filledValue,
+        type: 'order',
+        booked: true,
+      })
+    }
+      return arr;
+    
+    }, [])
+
+    return { items };
   } catch (e) {
     throw new Error(e.response?.data?.message || e.message);
   }

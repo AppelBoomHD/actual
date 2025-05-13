@@ -424,6 +424,7 @@ async function normalizeBankSyncTransactions(transactions, acctId) {
     }
 
     let imported_id = trans.transactionId;
+    trans.account = acctId;
     if (trans.cleared && !trans.transactionId && trans.internalTransactionId) {
       imported_id = `${trans.account}-${trans.internalTransactionId}`;
     }
@@ -431,7 +432,6 @@ async function normalizeBankSyncTransactions(transactions, acctId) {
     // It's important to resolve both the account and payee early so
     // when rules are run, they have the right data. Resolving payees
     // also simplifies the payee creation process
-    trans.account = acctId;
     trans.payee = await resolvePayee(trans, payeeName, payeesToCreate);
 
     normalized.push({
@@ -522,6 +522,7 @@ export async function reconcileTransactions(
 
       // Update the transaction
       const updates = {
+        amount: trans.amount || existing.amount || null,
         imported_id: trans.imported_id || null,
         payee: existing.payee || trans.payee || null,
         category: existing.category || trans.category || null,
@@ -984,20 +985,8 @@ async function downloadTrading212Transactions(acctId: string, since: string, typ
 
   // Normalize cash transactions
   const cashTransactions = [
-    ...(transactionsRes?.items || []).map((t: any) => ({
-      ...t,
-      date: new Date(t.dateTime),
-      payeeName: t.type,
-      amount: t.amount,
-      type: 'cash',
-    })),
-    ...(ordersRes?.items || []).map((o: any) => ({
-      ...o,
-      date: new Date(o.dateCreated),
-      payeeName: o.ticker,
-      amount: -o.filledValue,
-      type: 'order',
-    })),
+    ...(transactionsRes?.items || []),
+    ...(ordersRes?.items || [])
   ];
   
   return {
@@ -1016,17 +1005,8 @@ async function downloadTrading212Transactions(acctId: string, since: string, typ
     60000,
   );
 
-  const investmentTransactions = (portfolioRes || []).map((p: any) => ({
-    ...p,
-    date: new Date(p.initialFillDate),
-    payeeName: p.ticker,
-    amount: p.quantity * p.currentPrice,
-    type: 'investment',
-  }));
-
-
   return {
-      transactions: investmentTransactions,
+      transactions: portfolioRes,
       accountBalance: 0,
       startingBalance: 0,
     }
