@@ -1109,7 +1109,7 @@ export async function syncAccount(
   const oldestTransaction = await getAccountOldestTransaction(id);
   const newAccount = oldestTransaction == null;
 
-  let download: any;
+  let download;
   if (acctRow.account_sync_source === 'simpleFin') {
     download = await downloadSimpleFinTransactions(acctId, syncStartDate);
     return processBankSyncDownload(download, id, acctRow, newAccount);
